@@ -6,6 +6,7 @@ package uritemplates
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 )
@@ -117,6 +118,65 @@ func TestNegative(t *testing.T) {
 
 func TestSpecExamples(t *testing.T) {
 	runSpec(t, "tests/spec-examples.json")
+}
+
+func TestFullTemplate(t *testing.T) {
+	// template, _ := Parse("{var}")
+	// fmt.Printf("%+v, %+v\n", template)
+	// template, _ = Parse("{+var}")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("{+path}/here")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("X{#var}")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("map?{x,y}")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("{+path,x}/here")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("{#path,x}/here")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("X{.x,y}")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("{/var}")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("{;x,y}")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("{?x,y}")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("?fixed=yes{&x}")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("{?list}")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("{?list*}")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("{;keys}")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("{;keys*}")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("{/path}")
+	// fmt.Printf("%+v\n", template)
+	// template, _ := Parse("{path*}Taa")
+	// fmt.Printf("%+v\n", template)
+	// template, _ = Parse("{var:3} {+specialvar} {list*} {#crosshatch} {foo,bar,baz} {.x,y} {/z,t} {;x,y,empty} {?g,h} {/list*,path:4} {?events*}")
+	// fmt.Printf("%+v\n", template)
+}
+
+func testUx(template string, uri string) (map[string]interface{}, error) {
+	tmp, _ := Parse(template)
+	return tmp.Unexpand(uri)
+}
+
+func TestString(t *testing.T) {
+	res, _ := testUx("start~{contentType}", "start~vod")
+	fmt.Printf("%+v\n\n", res)
+	res, _ = testUx("/a{/path*}{?events*}", "/a/b/c/d?123=start~one&342=asd")
+	fmt.Printf("%+v\n\n", res)
+	// res, _ = testUx("X{.x,y}", "X.1024.768")
+	// fmt.Printf("%+v\n\n", res)
+	// res, _ = testUx("?fixed=yes{&x}", "?fixed=yes&x=1024")
+	// fmt.Printf("%+v\n\n", res)
+	res, _ = testUx("{path*}Taa", "a,cb,cTaa")
+	fmt.Printf("map: %+v\n\n", res)
 }
 
 func BenchmarkParse(b *testing.B) {

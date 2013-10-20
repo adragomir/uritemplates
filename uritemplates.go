@@ -23,11 +23,21 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"net/url"
 )
 
 var (
-	unreserved = regexp.MustCompile("[^A-Za-z0-9\\-._~]")
-	reserved   = regexp.MustCompile("[^A-Za-z0-9\\-._~:/?#[\\]@!$&'()*+,;=]")
+	ALPHA = "a-zA_Z"
+	DIGIT = "0-9"
+	GEN_DELIMS = ":/?#[\\]@"
+	SUB_DELIMS = "!$&'()*+,;="
+	UNRESERVED = ALPHA + DIGIT + "\\-._~"
+	RESERVED = GEN_DELIMS + SUB_DELIMS
+	UNRESERVED_RE = "(?:[" + UNRESERVED + "]|%[0-9A-Fa-f][0-9A-Fa-f])"
+	RESERVED_RE = "(?:[" + UNRESERVED + RESERVED + "]|%[0-9A-Fa-f][0-9A-Fa-f])"
+
+	nonUnreserved = regexp.MustCompile("[^A-Za-z0-9\\-._~]")
+	nonReserved   = regexp.MustCompile("[^A-Za-z0-9\\-._~:/?#[\\]@!$&'()*+,;=]")
 	validname  = regexp.MustCompile("^([A-Za-z0-9_\\.]|%[0-9A-Fa-f][0-9A-Fa-f])+$")
 	hex        = []byte("0123456789ABCDEF")
 )
@@ -45,9 +55,9 @@ func pctEncode(src []byte) []byte {
 
 func escape(s string, allowReserved bool) (escaped string) {
 	if allowReserved {
-		escaped = string(reserved.ReplaceAllFunc([]byte(s), pctEncode))
+		escaped = string(nonReserved.ReplaceAllFunc([]byte(s), pctEncode))
 	} else {
-		escaped = string(unreserved.ReplaceAllFunc([]byte(s), pctEncode))
+		escaped = string(nonUnreserved.ReplaceAllFunc([]byte(s), pctEncode))
 	}
 	return escaped
 }
@@ -205,6 +215,70 @@ func (self *UriTemplate) Expand(values map[string]interface{}) (result string, e
 	return result, err
 }
 
+func unescapeArr(escaped []string) (unescaped []string) {
+	unescaped = make([]string, len(escaped))
+	for ii, tmp := range escaped {
+		unescaped[ii], _ = url.QueryUnescape(tmp)
+	}
+	return unescaped
+}
+
+func (self *UriTemplate) Unexpand(uri string) (result map[string]interface{}, err error) {
+	restr := "^"
+	fmt.Printf("Unexpanding template: %+v", self.parts)
+	for _, p := range self.parts {
+		restr += p.buildRegexp()
+	}
+	restr += "$"
+	fmt.Printf("regexp: %s\n", restr)
+	matches, err := regexp.MatchString(restr, uri)
+	if (!matches) {
+		return nil, errors.New("No match")
+	}
+	pieces := regexp.MustCompile(restr).FindStringSubmatch(uri)[1:]
+	index := 0
+	fmt.Printf("%d, %+v\n", len(pieces), pieces)
+	out := make(map[string]interface{})
+	for _, p := range self.parts {
+		if p.raw != "" || (p.raw == "" && len(p.terms) == 0) {
+			continue
+		}
+		for _, t := range p.terms {
+			// +, #, /, .
+			if p.allowReserved || (p.sep == "/" || p.sep == "." || p.sep == ",") {
+				value := pieces[index]
+				if value != "" && t.explode {
+					out[t.name] = unescapeArr(strings.Split(value, p.sep))
+				} else {
+					out[t.name] = value
+				}
+			} else if p.sep == ";" || p.sep == "&" {
+				if t.explode {
+					hash := make(map[string]string)
+					for _, v := range strings.Split(pieces[index], p.sep) {
+						kv := strings.Split(v, "=")
+						if len(kv) == 2 {
+							hash[kv[0]], _ = url.QueryUnescape(kv[1])
+						} else {
+							hash[kv[0]] = ""
+						}
+					}
+					out[t.name] = hash
+				} else {
+					nv := strings.Split(pieces[index], "=")
+					if len(nv) == 2 {
+						out[nv[0]] = nv[1]
+					} else {
+						out[nv[0]] = ""
+					}
+				}
+			}
+			index ++
+		}
+	}
+	return out, nil
+}
+
 func (self *templatePart) expand(values map[string]interface{}) (result string, err error) {
 	if len(self.raw) > 0 {
 		return self.raw, err
@@ -243,6 +317,35 @@ func (self *templatePart) expand(values map[string]interface{}) (result string, 
 		result = ""
 	}
 	return result, err
+}
+
+func(self *templatePart) buildRegexp() string {
+	if self.raw != "" {
+		return regexp.QuoteMeta(self.raw)
+	}
+	restr := regexp.QuoteMeta(self.first)
+	varspecs := make([]string, len(self.terms), len(self.terms))
+	for idx, t := range self.terms {
+		group := ""
+		if self.allowReserved {
+			group = RESERVED_RE + "*?"
+		} else {
+			switch self.sep {
+			case "/": group = UNRESERVED_RE + "*?"
+			case ".": group = strings.Replace(UNRESERVED_RE, "\\.", "", -1) + "*?"
+			case ";": group = UNRESERVED_RE + "*=?" + UNRESERVED_RE + "*?"
+			case "?", "&": group = UNRESERVED_RE + "*=" + UNRESERVED_RE + "*?"
+			default: group = UNRESERVED_RE + "*?"
+			}
+		}
+		if t.explode {
+			group = "(" + group + "(?:" + regexp.QuoteMeta(self.sep) + "?" + group + ")*)?"
+		} else {
+			group = "(" + group + ")?"
+		}
+		varspecs[idx] = group
+	}
+	return restr + strings.Join(varspecs, regexp.QuoteMeta(self.sep))
 }
 
 func (self *templatePart) expandName(name string, empty bool) (result string) {
