@@ -34,6 +34,7 @@ var (
 	UNRESERVED = ALPHA + DIGIT + "\\-._~"
 	RESERVED = GEN_DELIMS + SUB_DELIMS
 	UNRESERVED_RE = "(?:[" + UNRESERVED + "]|%[0-9A-Fa-f][0-9A-Fa-f])"
+	UNRESERVED_RE_COMMA = "(?:[" + UNRESERVED + "," + "]|%[0-9A-Fa-f][0-9A-Fa-f])"
 	RESERVED_RE = "(?:[" + UNRESERVED + RESERVED + "]|%[0-9A-Fa-f][0-9A-Fa-f])"
 
 	nonUnreserved = regexp.MustCompile("[^A-Za-z0-9\\-._~]")
@@ -223,9 +224,11 @@ func unescapeArr(escaped []string) (unescaped []string) {
 	return unescaped
 }
 
+// heuristics and missing points:
+// ; with variable lists {;x,y,z} with undef values does not match anything
+// j
 func (self *UriTemplate) Unexpand(uri string) (result map[string]interface{}, err error) {
 	restr := "^"
-	fmt.Printf("Unexpanding template: %+v", self.parts)
 	for _, p := range self.parts {
 		restr += p.buildRegexp()
 	}
@@ -233,6 +236,7 @@ func (self *UriTemplate) Unexpand(uri string) (result map[string]interface{}, er
 	fmt.Printf("regexp: %s\n", restr)
 	matches, err := regexp.MatchString(restr, uri)
 	if (!matches) {
+		fmt.Printf("Error, no match found\n")
 		return nil, errors.New("No match")
 	}
 	pieces := regexp.MustCompile(restr).FindStringSubmatch(uri)[1:]
@@ -250,20 +254,39 @@ func (self *UriTemplate) Unexpand(uri string) (result map[string]interface{}, er
 				if value != "" && t.explode {
 					out[t.name] = unescapeArr(strings.Split(value, p.sep))
 				} else {
-					out[t.name] = value
+					// try to find a list
+					if strings.Index(value, ",") >= 0 {
+						out[t.name] = unescapeArr(strings.Split(value, ","))
+					} else {
+						out[t.name] = value
+					}
 				}
 			} else if p.sep == ";" || p.sep == "&" {
 				if t.explode {
+					kvs := strings.Split(pieces[index], p.sep)
+					use_hash := true
 					hash := make(map[string]string)
-					for _, v := range strings.Split(pieces[index], p.sep) {
+					list := make([]string, len(kvs), len(kvs))
+					if strings.HasPrefix(kvs[0], t.name + "=") {
+						use_hash = false
+					}
+					for kvidx, v := range kvs {
 						kv := strings.Split(v, "=")
+						val := ""
 						if len(kv) == 2 {
-							hash[kv[0]], _ = url.QueryUnescape(kv[1])
+							val, _ = url.QueryUnescape(kv[1])
+						}
+						if (use_hash) {
+							hash[kv[0]] = val
 						} else {
-							hash[kv[0]] = ""
+							list[kvidx] = val
 						}
 					}
-					out[t.name] = hash
+					if (use_hash) {
+						out[t.name] = hash
+					} else {
+						out[t.name] = list
+					}
 				} else {
 					nv := strings.Split(pieces[index], "=")
 					if len(nv) == 2 {
@@ -331,11 +354,11 @@ func(self *templatePart) buildRegexp() string {
 			group = RESERVED_RE + "*?"
 		} else {
 			switch self.sep {
-			case "/": group = UNRESERVED_RE + "*?"
-			case ".": group = strings.Replace(UNRESERVED_RE, "\\.", "", -1) + "*?"
-			case ";": group = UNRESERVED_RE + "*=?" + UNRESERVED_RE + "*?"
-			case "?", "&": group = UNRESERVED_RE + "*=" + UNRESERVED_RE + "*?"
-			default: group = UNRESERVED_RE + "*?"
+			case "/": group = UNRESERVED_RE_COMMA + "*?"
+			case ".": group = strings.Replace(UNRESERVED_RE_COMMA, "\\.", "", -1) + "*?"
+			case ";": group = UNRESERVED_RE_COMMA + "*=?" + UNRESERVED_RE_COMMA + "*?"
+			case "?", "&": group = UNRESERVED_RE_COMMA + "*=" + UNRESERVED_RE_COMMA + "*?"
+			default: group = UNRESERVED_RE_COMMA + "*?"
 			}
 		}
 		if t.explode {
