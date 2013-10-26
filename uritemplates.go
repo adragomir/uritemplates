@@ -233,15 +233,12 @@ func (self *UriTemplate) Unexpand(uri string) (result map[string]interface{}, er
 		restr += p.buildRegexp()
 	}
 	restr += "$"
-	fmt.Printf("regexp: %s\n", restr)
 	matches, err := regexp.MatchString(restr, uri)
 	if !matches {
-		fmt.Printf("Error, no match found\n")
 		return nil, errors.New("No match")
 	}
 	pieces := regexp.MustCompile(restr).FindStringSubmatch(uri)[1:]
 	index := 0
-	fmt.Printf("%d, %+v\n", len(pieces), pieces)
 	out := make(map[string]interface{})
 	for _, p := range self.parts {
 		if p.raw != "" || (p.raw == "" && len(p.terms) == 0) {
