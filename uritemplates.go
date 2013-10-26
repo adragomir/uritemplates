@@ -20,27 +20,27 @@ package uritemplates
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
-	"net/url"
 )
 
 var (
-	ALPHA = "a-zA_Z"
-	DIGIT = "0-9"
-	GEN_DELIMS = ":/?#[\\]@"
-	SUB_DELIMS = "!$&'()*+,;="
-	UNRESERVED = ALPHA + DIGIT + "\\-._~"
-	RESERVED = GEN_DELIMS + SUB_DELIMS
-	UNRESERVED_RE = "(?:[" + UNRESERVED + "]|%[0-9A-Fa-f][0-9A-Fa-f])"
+	ALPHA               = "a-zA-Z"
+	DIGIT               = "0-9"
+	GEN_DELIMS          = ":/?#[\\]@"
+	SUB_DELIMS          = "!$&'()*+,;="
+	UNRESERVED          = ALPHA + DIGIT + "\\-._~"
+	RESERVED            = GEN_DELIMS + SUB_DELIMS
+	UNRESERVED_RE       = "(?:[" + UNRESERVED + "]|%[0-9A-Fa-f][0-9A-Fa-f])"
 	UNRESERVED_RE_COMMA = "(?:[" + UNRESERVED + "," + "]|%[0-9A-Fa-f][0-9A-Fa-f])"
-	RESERVED_RE = "(?:[" + UNRESERVED + RESERVED + "]|%[0-9A-Fa-f][0-9A-Fa-f])"
+	RESERVED_RE         = "(?:[" + UNRESERVED + RESERVED + "]|%[0-9A-Fa-f][0-9A-Fa-f])"
 
 	nonUnreserved = regexp.MustCompile("[^A-Za-z0-9\\-._~]")
 	nonReserved   = regexp.MustCompile("[^A-Za-z0-9\\-._~:/?#[\\]@!$&'()*+,;=]")
-	validname  = regexp.MustCompile("^([A-Za-z0-9_\\.]|%[0-9A-Fa-f][0-9A-Fa-f])+$")
-	hex        = []byte("0123456789ABCDEF")
+	validname     = regexp.MustCompile("^([A-Za-z0-9_\\.]|%[0-9A-Fa-f][0-9A-Fa-f])+$")
+	hex           = []byte("0123456789ABCDEF")
 )
 
 func pctEncode(src []byte) []byte {
@@ -235,7 +235,7 @@ func (self *UriTemplate) Unexpand(uri string) (result map[string]interface{}, er
 	restr += "$"
 	fmt.Printf("regexp: %s\n", restr)
 	matches, err := regexp.MatchString(restr, uri)
-	if (!matches) {
+	if !matches {
 		fmt.Printf("Error, no match found\n")
 		return nil, errors.New("No match")
 	}
@@ -267,7 +267,7 @@ func (self *UriTemplate) Unexpand(uri string) (result map[string]interface{}, er
 					use_hash := true
 					hash := make(map[string]string)
 					list := make([]string, len(kvs), len(kvs))
-					if strings.HasPrefix(kvs[0], t.name + "=") {
+					if strings.HasPrefix(kvs[0], t.name+"=") {
 						use_hash = false
 					}
 					for kvidx, v := range kvs {
@@ -276,13 +276,13 @@ func (self *UriTemplate) Unexpand(uri string) (result map[string]interface{}, er
 						if len(kv) == 2 {
 							val, _ = url.QueryUnescape(kv[1])
 						}
-						if (use_hash) {
+						if use_hash {
 							hash[kv[0]] = val
 						} else {
 							list[kvidx] = val
 						}
 					}
-					if (use_hash) {
+					if use_hash {
 						out[t.name] = hash
 					} else {
 						out[t.name] = list
@@ -296,7 +296,7 @@ func (self *UriTemplate) Unexpand(uri string) (result map[string]interface{}, er
 					}
 				}
 			}
-			index ++
+			index++
 		}
 	}
 	return out, nil
@@ -342,7 +342,7 @@ func (self *templatePart) expand(values map[string]interface{}) (result string, 
 	return result, err
 }
 
-func(self *templatePart) buildRegexp() string {
+func (self *templatePart) buildRegexp() string {
 	if self.raw != "" {
 		return regexp.QuoteMeta(self.raw)
 	}
@@ -354,11 +354,16 @@ func(self *templatePart) buildRegexp() string {
 			group = RESERVED_RE + "*?"
 		} else {
 			switch self.sep {
-			case "/": group = UNRESERVED_RE_COMMA + "*?"
-			case ".": group = strings.Replace(UNRESERVED_RE_COMMA, "\\.", "", -1) + "*?"
-			case ";": group = UNRESERVED_RE_COMMA + "*=?" + UNRESERVED_RE_COMMA + "*?"
-			case "?", "&": group = UNRESERVED_RE_COMMA + "*=" + UNRESERVED_RE_COMMA + "*?"
-			default: group = UNRESERVED_RE_COMMA + "*?"
+			case "/":
+				group = UNRESERVED_RE_COMMA + "*?"
+			case ".":
+				group = strings.Replace(UNRESERVED_RE_COMMA, "\\.", "", -1) + "*?"
+			case ";":
+				group = UNRESERVED_RE_COMMA + "*=?" + UNRESERVED_RE_COMMA + "*?"
+			case "?", "&":
+				group = UNRESERVED_RE_COMMA + "*=" + UNRESERVED_RE_COMMA + "*?"
+			default:
+				group = UNRESERVED_RE_COMMA + "*?"
 			}
 		}
 		if t.explode {

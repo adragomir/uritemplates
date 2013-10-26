@@ -126,7 +126,7 @@ func testUx(template string, uri string) (map[string]interface{}, error) {
 }
 
 func TestString(t *testing.T) {
-	res, _ := testUx("start~{contentType}", "start~vod")
+	res, _ := testUx("start~{contentType}", "start~VOD")
 	fmt.Printf("%+v\n\n", res)
 	res, _ = testUx("/a{/path*}{?events*}", "/a/b/c/d?123=start~one&342=asd")
 	fmt.Printf("%+v\n\n", res)
